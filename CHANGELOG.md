@@ -6,6 +6,56 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.2] - 2026-10-25
+
+对照上游契约做全量功能验证，并把验证过程中发现的问题一起修掉。
+
+### 新增
+
+- **`docs/05-功能验证报告.md`** —— 对照上游唯一契约源 `api/openapi.yaml` 逐条核对：
+  - **契约层**：158 个操作（117 条路径）逐个打真实请求 → **158/158 存在，0 缺失**
+    （判据：版本化路由返回 401 表示已注册并受保护，返回 404 才是真缺失；
+    因此**不需要管理员密码**也能验证接口完整性）
+  - **页面层**：前端注册的 12 个业务路由（`/app/*`）逐个访问 → 12/12 返回 SPA 挂载点
+  - **上游自测层**：`go test ./internal/server`（离线）→ 555 通过 / 1 失败，
+    失败项为上**游自身的跨平台缺陷**，报告里定位到具体代码行与影响面
+- **`docs/06-使用与配置手册.md`** —— 1157 行完整使用与配置手册：
+  首次配置流程、功能地图（11 个菜单页 + 真实接口）、核心数据流、
+  自动化规则、消息回复（关键词/默认/AI 三者关系）、卡密与发货模板、
+  通知渠道、全部配置项、日常运维、风控红线、常见问题、环境变量完整清单
+- **静态检查 21 → 22 项**，新增两条门禁：
+  - `没有「读了但从未赋值」的变量（StrictMode 下会抛错）`
+  - `使用手册覆盖全部运行期环境变量` —— 从 `app\` 源码实读
+    `os.Getenv`/`os.LookupEnv`（22 个运行期变量），逐条比对手册，防文档漂移
+    （只豁免 7 个纯测试/CI 专用变量）
+
+### 修复
+
+- **`build.ps1 -SkipFrontend -SkipGo` 直接抛错**：
+  ```text
+  The variable '$restartAfterBuild' cannot be retrieved because it has not been set.
+  ```
+  根因：该变量只在 `if (-not $SkipGo) {...}` 里赋值，而 `common.ps1` 打开了
+  `Set-StrictMode -Version Latest`，两个开关都跳过时末尾读它即抛错。
+  修复：在最外层预赋 `$false`；并在 `CONTRIBUTING.md` 写明这条编码约定
+  （静态检查只能确定地拦「全文从未赋值」，作用域类问题靠约定）。
+
+### 变更
+
+- 文档索引与 CI 一致性检查同步纳入 `docs/05`、`docs/06`
+- README 徽章与目录树更新（静态检查 22 项、新增两份文档）
+
+### 验证（真实执行）
+
+```text
+契约操作          158 / 158 存在        0 缺失
+前端页面           12 / 12  可达
+部署完整性        30 / 30  通过
+静态检查          22 / 22  通过（PS 7.6.8 与 5.1 各一遍）
+公共层单元自测    17 / 17  通过
+上游 server 包   555 / 556 通过（1 项为上游 Windows 路径归一化缺陷，已定位）
+```
+
 ## [1.1.1] - 2026-10-25
 
 发布后 CI 与可用性收尾。
@@ -196,6 +246,5 @@ deploy\run.ps1 -Script start   2.5 秒返回（修复前：120 秒不返回）
 4. `/api/v1/chat/sessions` 只有 DELETE 方法，被当 GET 用
 5. `/api/v1/session` 响应是扁平的，被当成 `{data:{...}}` 解析
 
-[1.1.1]: https://github.com/Yunique-hub/ydisks-win-deploy/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Yunique-hub/ydisks-win-deploy/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Yunique-hub/ydisks-win-deploy/releases/tag/v1.0.0

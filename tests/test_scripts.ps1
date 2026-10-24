@@ -213,6 +213,55 @@ if ($PSVersionTable.PSEdition -eq 'Core' -and (Test-Path (Join-Path $env:SystemR
     Add-Check -Name '全部脚本可被 Windows PowerShell 5.1 解析' -Ok $true -Detail '当前会话不是 PS7 或无 5.1，已跳过'
 }
 
+# 1.5 StrictMode 下的「读了但从未赋值」。
+#     common.ps1 打开 Set-StrictMode -Version Latest，读一个不存在的变量会**抛错**
+#     而不是返回 $null。真实踩过：build.ps1 把 $restartAfterBuild 只在
+#     `if (-not $SkipGo) {...}` 里赋值，用 -SkipFrontend -SkipGo 跑时末尾读它 →
+#     "The variable '$restartAfterBuild' cannot be retrieved because it has not been set"。
+#
+#     注：那条具体缺陷的完整检测需要作用域分析（该变量在别处确实有赋值），
+#     静态文本层面无法可靠判定，故这里只做**能确定**的一类：
+#     被读取但整个文件里从未出现过赋值的变量名（排除自动变量、参数、
+#     StrictMode 预置变量与常见环境变量）。
+#     其余同类风险请靠「顶格预赋默认值」的编码约定，见 CONTRIBUTING.md。
+$builtinVars = @(
+    'args', 'input', 'error', 'host', 'home', 'pid', 'pwd', 'matches', 'lastexitcode',
+    'psitem', 'psscriptroot', 'pscommandpath', 'myinvocation', 'executioncontext',
+    'profile', 'stacktrace', 'shellid', 'true', 'false', 'null', 'this', '_',
+    'env', 'script', 'global', 'local', 'private', 'using', 'psversiontable',
+    'psedition', 'pshome', 'psculture', 'psuiculture', 'psdefaultparametervalues',
+    'iswindows', 'islINUX', 'ismacos', 'isMacOS', 'isasCore', 'verbose', 'debug',
+    'informationpreference', 'progresspreference', 'warningpreference',
+    'erroractionpreference', 'verbosepreference', 'debugpreference',
+    'whatifpreference', 'confirmpreference', 'outputencoding', 'maximumhistorycount',
+    'nestedpromptlevel', 'formatenumerationlimit', 'psmodulepath', 'consoleencoding'
+)
+$neverAssigned = @()
+foreach ($s in $scripts) {
+    $text = [System.IO.File]::ReadAllText($s.FullName)
+    # 参数声明（param 块里 $Name = 形式已经是赋值；这里再忽略 [type]$Name 形式）
+    $declared = @{}
+    foreach ($m in [regex]::Matches($text, '(?m)\$([A-Za-z_][A-Za-z0-9_]*)\s*(?:=[^=]|\))')) {
+        $declared[$m.Groups[1].Value] = $true
+    }
+    foreach ($m in [regex]::Matches($text, '(?m)\[.*?\]\$([A-Za-z_][A-Za-z0-9_]*)')) {
+        $declared[$m.Groups[1].Value] = $true
+    }
+    # foreach / ForEach-Object -Begin 等循环变量也是赋值
+    foreach ($m in [regex]::Matches($text, '(?i)foreach\s*\(\s*\$([A-Za-z_][A-Za-z0-9_]*)')) {
+        $declared[$m.Groups[1].Value] = $true
+    }
+    foreach ($m in [regex]::Matches($text, '(?i)\b(?:for|trap)\b')) { }
+    foreach ($v in @([regex]::Matches($text, '(?m)\$([A-Za-z_][A-Za-z0-9_]*)') | ForEach-Object { $_.Groups[1].Value })) {
+        if ($declared.ContainsKey($v) -or $builtinVars -contains $v.ToLowerInvariant()) { continue }
+        $neverAssigned += "$($s.Name):\$$v"
+    }
+}
+$neverAssigned = @($neverAssigned | Select-Object -Unique)
+Add-Check -Name '没有「读了但从未赋值」的变量（StrictMode 下会抛错）' `
+    -Ok ($neverAssigned.Count -eq 0) `
+    -Detail $(if ($neverAssigned) { return "疑似未赋值：$($neverAssigned -join ', ')" } else { '未发现' })
+
 # ---------------------------------------------------------------------------
 Write-Host ''
 Write-Host '  2. 已知陷阱（这些坑都真实踩过）' -ForegroundColor Cyan
@@ -329,6 +378,44 @@ foreach ($s in $scripts) {
 }
 Add-Check -Name '没有危险的根目录删除操作' -Ok ($dangerous.Count -eq 0) `
     -Detail $(if ($dangerous) { $dangerous -join ', ' } else { '无' })
+
+# 3.5 文档漂移防护：凡是用 ``os.Getenv("X")`` 读的环境变量，使用手册必须提到 X。
+#     真实踩过：手册第 9 章自称「全部可配置项」，但与源码实际读取的 28 个变量对不上，
+#     漏了 XIANYU_LOG_DIR / BROWSER_HEADLESS 这类真实会用的项。
+#     规则：允许清单（纯测试/CI 专用等）可以豁免，其余必须出现在手册里。
+$manualPath = 'docs\06-使用与配置手册.md'
+if (Test-Path $manualPath) {
+    $envAllowlist = @(
+        # 纯测试/CI 专用，故意不写进使用者手册
+        'RUN_BROWSER_INTEGRATION', 'TEST_MYSQL_URL', 'TEST_POSTGRES_URL',
+        'TEST_XIANYU_DB_URL', 'TEST_XIANYU_ACCOUNT_ID', 'TEST_XIANYU_LIVE',
+        'PROGRAMDATA'
+    )
+    $srcEnv = @()
+    Get-ChildItem -Path 'app\internal', 'app\cmd' -Recurse -Include '*.go' -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notmatch '_test\.go$' } | ForEach-Object {
+            $goText = [System.IO.File]::ReadAllText($_.FullName)
+            foreach ($m in [regex]::Matches($goText, 'os\.(?:Getenv|LookupEnv)\("([A-Z0-9_]+)"\)')) {
+                $srcEnv += $m.Groups[1].Value
+            }
+        }
+    $srcEnv = @($srcEnv | Sort-Object -Unique)
+    if ($srcEnv.Count -eq 0) {
+        Add-Check -Name '环境变量文档一致性' -Ok $true -Detail '未找到 app\ 源码（可能未部署上游），已跳过'
+    } else {
+        $manualText = [System.IO.File]::ReadAllText([System.IO.Path]::GetFullPath($manualPath))
+        $undocumented = @($srcEnv | Where-Object { $envAllowlist -notcontains $_ -and $manualText -notmatch [regex]::Escape($_) })
+        Add-Check -Name "使用手册覆盖全部运行期环境变量（源码实读 $($srcEnv.Count) 个）" `
+            -Ok ($undocumented.Count -eq 0) `
+            -Detail $(if ($undocumented) {
+                "手册未提及：$($undocumented -join ', ')"
+            } else {
+                "已覆盖（豁免纯测试变量 $($envAllowlist.Count) 个）"
+            })
+    }
+} else {
+    Add-Check -Name '环境变量文档一致性' -Ok $true -Detail '缺少 docs\06-使用与配置手册.md，已跳过'
+}
 
 # ---------------------------------------------------------------------------
 Write-Host ''

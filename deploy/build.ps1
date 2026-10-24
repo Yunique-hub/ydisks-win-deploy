@@ -35,6 +35,13 @@ Initialize-DeployLog -Name 'build'
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 Write-Log "构建开始：$($script:RepoRoot)"
 
+# 是否需要在构建结束后把服务启回来。
+# ★ 必须在**最外层**预先赋值：common.ps1 打开了 Set-StrictMode -Version Latest，
+#   如果只在 `if (-not $SkipGo) { ... }` 里赋值，那么用 -SkipFrontend -SkipGo
+#   跑（CI 与排错常用）时末尾读它会抛
+#   "The variable '$restartAfterBuild' cannot be retrieved because it has not been set."
+$restartAfterBuild = $false
+
 # ---------------------------------------------------------------------------
 Write-Step '检查源码'
 if (-not (Test-Path (Join-Path $script:Paths.App 'go.mod'))) {
@@ -90,7 +97,6 @@ if (-not $SkipGo) {
     # Windows 不允许覆盖正在运行的 exe：Go 会写出 "xxx.exe~" 然后改名失败，
     # 结果产物是旧的、还多一个垃圾文件。所以构建前必须先停服务。
     $runningServer = Get-Process -Name 'xianyu-server' -ErrorAction SilentlyContinue
-    $restartAfterBuild = $false
     if ($runningServer) {
         Write-Log "服务正在运行（PID $($runningServer.Id)），先停止以释放可执行文件" -Level WARN
         & (Join-Path $PSScriptRoot 'stop.ps1') -Quiet

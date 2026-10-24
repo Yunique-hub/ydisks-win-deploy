@@ -12,7 +12,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D6.svg)](#兼容矩阵)
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE.svg)](#兼容矩阵)
 [![Deploy Verify](https://img.shields.io/badge/deploy%20verify-30%2F30-success.svg)](docs/04-验证报告.md)
-[![Static Checks](https://img.shields.io/badge/static%20checks-20%2F20-success.svg)](tests/test_scripts.ps1)
+[![Static Checks](https://img.shields.io/badge/static%20checks-22%2F22-success.svg)](tests/test_scripts.ps1)
 [![Unit Selftest](https://img.shields.io/badge/unit%20selftest-17%2F17-success.svg)](tests/test_common_selftest.ps1)
 
 [快速开始](#快速开始) · [它解决什么](#它解决什么) · [架构](#架构) · [命令速查](#命令速查) · [验证证据](#验证证据) · [排错](#排错) · [文档](#文档)
@@ -139,7 +139,7 @@ cd ydisks-win-deploy
 .\deploy\install-service.ps1 -Mode status
 
 # ---- 测试（本地就能跑，不需要已部署）----
-.\tests\test_scripts.ps1                   # 20 项脚本静态检查（含 5.1 真实解析器）
+.\tests\test_scripts.ps1                   # 22 项脚本静态检查（含 5.1 真实解析器）
 .\tests\test_common_selftest.ps1           # 17 项公共层单元自测
 ```
 
@@ -174,18 +174,20 @@ cd ydisks-win-deploy
 2. 浏览器层不只看 HTTP 200，而是用真实 Chromium **无头渲染**，
    断言 React 挂载点非空、出现界面文案、且引用了静态资源。
 
-### 脚本自身：20 项静态检查 + 17 项单元自测
+### 脚本自身：22 项静态检查 + 17 项单元自测
 
 ```text
-tests\test_scripts.ps1        检查结论：通过 20 / 失败 0 / 共 20
+tests\test_scripts.ps1        检查结论：通过 22 / 失败 0 / 共 22
 tests\test_common_selftest.ps1 自测结论：通过 17 / 失败 0 / 共 17
 ```
 
-静态检查里有三条是**专门为本次事故加的**护栏：
+静态检查里有几条是**专门为踩过的坑加的**护栏：
 
 * `.ps1 含非 ASCII 时带 UTF-8 BOM` —— 第 1 号坑不再可能悄悄回归
 * `没有给自动变量赋值（$args / $input / $host ...）` —— 第 4 号坑
 * `没有内联 if 表达式当参数（PS7 专属）` —— 第 5 号坑
+* `没有「读了但从未赋值」的变量` —— `build.ps1 -SkipFrontend -SkipGo` 曾因此抛错
+* `使用手册覆盖全部运行期环境变量` —— 从 `app\` 源码实读 `os.Getenv`，逐条比对手册，防文档漂移
 * 外加「用**真实的 PowerShell 5.1 解析器**再解析一遍」—— 只用 PS7 的 Parser
   永远发现不了编码类问题（PS7 能读无 BOM 的 UTF-8）
 
@@ -213,7 +215,7 @@ tests\test_common_selftest.ps1 自测结论：通过 17 / 失败 0 / 共 17
 │   └── install-service.ps1       注册为 Windows 服务
 │
 ├── tests/
-│   ├── test_scripts.ps1          脚本静态检查（20 项，含真实 5.1 解析器门禁）
+│   ├── test_scripts.ps1          脚本静态检查（22 项，含真实 5.1 解析器与文档一致性门禁）
 │   └── test_common_selftest.ps1  公共层单元自测（17 项）
 │
 ├── docs/
@@ -270,7 +272,9 @@ tests\test_common_selftest.ps1 自测结论：通过 17 / 失败 0 / 共 17
 | [docs/01-项目分析.md](docs/01-项目分析.md) | 上游项目的代码级分析：规模、架构、功能矩阵、工程化水平、风险 |
 | [docs/02-部署手册.md](docs/02-部署手册.md) | 前置条件、一键部署、目录说明、参数表、构建细节、**编码坑复盘**、排错 |
 | [docs/03-使用说明.md](docs/03-使用说明.md) | 面向使用者：首次使用、日常运维、常见问题、安全红线 |
-| [docs/04-验证报告.md](docs/04-验证报告.md) | 全部验证的真实执行输出 + 过程中修正的缺陷清单 |
+| [docs/04-验证报告.md](docs/04-验证报告.md) | 部署验证的真实执行输出 + 过程中修正的缺陷清单 |
+| [docs/05-功能验证报告.md](docs/05-功能验证报告.md) | **对照上游契约逐条核对**：158 个 API 操作 + 12 个前端页面 + 上游自测 556 项 |
+| [docs/06-使用与配置手册.md](docs/06-使用与配置手册.md) | **完整使用与配置手册**：首次配置流程、功能地图、自动化规则、消息回复、卡密、通知、全部配置项、风控红线 |
 | [SECURITY.md](SECURITY.md) | 漏洞报告方式与安全边界 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 提交规范与本地验证要求 |
 

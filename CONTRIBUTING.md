@@ -39,6 +39,13 @@
 7. **不创建 git commit / 不 push**，除非维护者明确要求。
 8. **敏感物永不入库**：任何密钥、凭据、数据库、日志、构建产物。
    新增生成目录时同步更新 `.gitignore` 与 `tests\test_scripts.ps1` 的卫生检查。
+9. **`Set-StrictMode -Version Latest` 下的变量必须先赋值再读。**
+   `common.ps1` 打开了 strict mode，读一个「只在某个条件分支里赋值过」的变量会
+   **抛错**而不是返回 `$null`。真实踩过：`build.ps1` 的 `$restartAfterBuild`
+   只在 `if (-not $SkipGo) {...}` 里赋值，用 `-SkipFrontend -SkipGo` 跑时末尾读它 →
+   `The variable '$restartAfterBuild' cannot be retrieved because it has not been set`。
+   **约定：凡是会在多个分支之间共享的变量，在最外层先赋默认值。**
+   （静态检查只能确定地拦「读了但全文从未赋值」，作用域类问题靠这条约定。）
 
 ## 代码风格
 
