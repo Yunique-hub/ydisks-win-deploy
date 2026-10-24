@@ -171,7 +171,7 @@ if ($result.Healthy) {
 } else {
     Write-Host "  启动服务  .\deploy\start.ps1" -ForegroundColor DarkGray
 }
-Write-Host "  服务日志  $($script:Paths.Logs)\server.stdout.log" -ForegroundColor DarkGray
+Write-Host "  服务日志  $($script:Paths.Logs)\server.log" -ForegroundColor DarkGray
 Write-Host ''
 
 if ($result.Healthy) { exit 0 } else { exit 1 }

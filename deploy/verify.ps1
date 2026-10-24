@@ -513,7 +513,7 @@ if ($Json) {
     }
     Write-Host ''
     Write-Host "  管理后台  $base" -ForegroundColor Cyan
-    Write-Host "  服务日志  $($script:Paths.Logs)\server.stdout.log" -ForegroundColor DarkGray
+    Write-Host "  服务日志  $($script:Paths.Logs)\server.log" -ForegroundColor DarkGray
     if ($script:LogFile) { Write-Host "  验证日志  $script:LogFile" -ForegroundColor DarkGray }
     Write-Host ''
 }

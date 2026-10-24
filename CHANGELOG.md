@@ -6,6 +6,34 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.1] - 2026-10-25
+
+发布后 CI 与可用性收尾。
+
+### 修复
+
+- **CI 首次推送被 GitHub 判为非法 workflow**：
+  `Invalid workflow file: Unrecognized named-value: 'matrix'`。
+  原因是 GitHub Actions 的 step 级 `shell:` 字段**不支持 matrix 上下文**
+  （只有 `run` / `name` / `if` 等支持）。改为 `shell: pwsh` 固定，
+  由「5.1 那一档」在 pwsh 里显式调用 `powershell.exe` 运行测试脚本，
+  并用 `$LASTEXITCODE` 判定；两档各自打印解释器版本与输出编码作为证据。
+- `status.ps1` / `verify.ps1` 结尾提示的日志路径由 `server.stdout.log`
+  改为 `server.log` —— 1.1.0 起服务不再用重定向启动，结构化日志在后者。
+
+### 验证
+
+```text
+GitHub Actions（windows-latest）
+  PowerShell 脚本检查（5.1）: success
+  PowerShell 脚本检查（7）  : success
+
+本地
+  tests\test_scripts.ps1         通过 20 / 失败 0 / 共 20
+  tests\test_common_selftest.ps1 通过 17 / 失败 0 / 共 17
+  deploy\verify.ps1              通过 30 / 跳过 0 / 失败 0 / 共 30
+```
+
 ## [1.1.0] - 2026-10-25
 
 「双击就报错」的彻底修复版。这一版把 5.1 兼容性从「声称支持」变成**有门禁、有证据**。
@@ -168,5 +196,6 @@ deploy\run.ps1 -Script start   2.5 秒返回（修复前：120 秒不返回）
 4. `/api/v1/chat/sessions` 只有 DELETE 方法，被当 GET 用
 5. `/api/v1/session` 响应是扁平的，被当成 `{data:{...}}` 解析
 
+[1.1.1]: https://github.com/Yunique-hub/ydisks-win-deploy/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Yunique-hub/ydisks-win-deploy/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Yunique-hub/ydisks-win-deploy/releases/tag/v1.0.0
