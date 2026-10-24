@@ -13,6 +13,7 @@
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE.svg)](#兼容矩阵)
 [![Deploy Verify](https://img.shields.io/badge/deploy%20verify-30%2F30-success.svg)](docs/04-验证报告.md)
 [![Static Checks](https://img.shields.io/badge/static%20checks-20%2F20-success.svg)](tests/test_scripts.ps1)
+[![Unit Selftest](https://img.shields.io/badge/unit%20selftest-17%2F17-success.svg)](tests/test_common_selftest.ps1)
 
 [快速开始](#快速开始) · [它解决什么](#它解决什么) · [架构](#架构) · [命令速查](#命令速查) · [验证证据](#验证证据) · [排错](#排错) · [文档](#文档)
 
