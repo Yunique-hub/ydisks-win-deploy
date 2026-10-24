@@ -1,0 +1,30 @@
+# 统一编辑器配置，避免不同 IDE 产生无意义的格式化 diff
+# https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{ps1,psm1,psd1}]
+indent_size = 4
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+indent_size = 2
+# Markdown 里行尾两个空格是有意义的分行标记
+trim_trailing_whitespace = false
+
+# Windows 批处理必须 CRLF，否则 cmd 解析可能出问题
+[*.{bat,cmd}]
+end_of_line = crlf
+
+[*.{js,ts,tsx,jsx}]
+indent_size = 2

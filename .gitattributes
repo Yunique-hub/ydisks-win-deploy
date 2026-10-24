@@ -1,0 +1,39 @@
+# 统一换行符与文件类型识别
+# https://git-scm.com/docs/gitattributes
+
+# ---- 默认：文本文件统一用 LF 入库 ----
+* text=auto eol=lf
+
+# ---- Windows 脚本 ----
+# .bat 必须 CRLF：cmd.exe 对 LF-only 的批处理解析不可靠（自带检查器会拦）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+# .ps1 用 LF：PowerShell 5.1 / 7 都接受 LF，且仓库里的检查器按 LF 校验；
+# 若这里写成 eol=crlf，core.autocrlf=true 的机器检出的工作区会变成 CRLF，
+# 检查器就会在「同一份提交」上给出不同结论 —— 所以明确用 LF。
+*.ps1 text eol=lf
+
+# ---- 二进制 ----
+*.exe binary
+*.dll binary
+*.zip binary
+*.7z binary
+*.gz binary
+*.db binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.xlsx binary
+*.docx binary
+
+# ---- 语言识别 ----
+*.ps1 linguist-language=PowerShell
+*.bat linguist-language=Batchfile
+
+# ---- 文档不计入语言统计 ----
+docs/** linguist-documentation=true
+*.md linguist-documentation=true

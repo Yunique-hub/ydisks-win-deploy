@@ -1,0 +1,25 @@
+Ydisks闲鱼助手 · Windows 本地部署工具链
+Copyright (c) 2026 Yunique-hub
+
+本仓库包含两部分内容：
+
+1. 部署工具链（原创）
+   deploy/  tests/  docs/  *.bat  README.md  CHANGELOG.md
+   → 以 Apache-2.0 发布
+
+2. 上游项目（不入库，由部署脚本克隆）
+   名称：Ydisks 闲鱼助手（Ydisks Xianyu Helper）
+   作者：Christ9038
+   仓库：https://github.com/Christ9038/Ydisks-Xianyu-Helper
+   许可：Apache License 2.0
+
+   app/ 目录是上游源码的 git 工作副本，由 deploy/bootstrap.ps1 克隆得到，
+   未包含在本仓库中。上游的版权、许可与免责声明见其仓库内 LICENSE 与 README。
+
+上游 README 中的免责声明（摘要）：
+  本项目仅供学习与研究使用。使用者需自行确保其使用行为符合相关平台规则
+   与法律法规，并自行承担由此产生的全部责任与后果。
+   开发者不对因使用本项目导致的任何直接或间接损失承担责任。
+
+本仓库的工具链同样按 Apache-2.0 的「按原样提供」条款发布，
+不提供任何形式的担保。
