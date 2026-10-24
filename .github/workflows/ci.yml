@@ -10,7 +10,9 @@
 # 实现细节：GitHub Actions 的 step 级 `shell:` 字段**不接受 matrix 上下文**
 #   （会被判成 Invalid workflow file: Unrecognized named-value: 'matrix'），
 #   所以 shell 固定为 pwsh，由「5.1 那一档」在 pwsh 里显式调用 powershell.exe，
-#   并用 `exit $LASTEXITCODE` 把真实退出码带出来。
+#   并用 `$LASTEXITCODE` 判定真实退出码。
+#   另注：matrix.shell 单独出现在字符串里会渲染成 Hashtable 的 ToString 结果，
+#   所以下面只用它的**比较**形式（if (... -eq 'powershell')），不直接打印。
 #
 # 完整部署验证（deploy/verify.ps1，30 项/八层）需要已构建的二进制、Chromium 运行时
 # 与运行中的服务，属于「部署后验证」，不在 CI 里跑；CI 只保证脚本本身可用。
@@ -49,11 +51,14 @@ jobs:
         run: |
           "矩阵档位：PowerShell ${{ matrix.ps }}"
           if ('${{ matrix.shell }}' -eq 'powershell') {
-            & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command '"5.1 实测：$($PSVersionTable.PSVersion)"'
+            # 这一档要证明的就是：Windows PowerShell 5.1 也能跑通全部脚本
+            & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command '
+              "5.1 实测：$($PSVersionTable.PSVersion) / $($PSVersionTable.PSEdition)"
+              "Console.OutputEncoding=$([Console]::OutputEncoding.WebName)"'
           } else {
             "7 实测：$($PSVersionTable.PSVersion) / $($PSVersionTable.PSEdition)"
+            "Console.OutputEncoding=$([Console]::OutputEncoding.WebName)"
           }
-          "Console.OutputEncoding=$([Console]::OutputEncoding.WebName)"
 
       - name: 脚本静态检查（含编码与 5.1 解析器门禁）
         shell: pwsh
