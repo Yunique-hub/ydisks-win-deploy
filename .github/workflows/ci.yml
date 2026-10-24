@@ -1,0 +1,124 @@
+# CI：PowerShell 5.1 ↔ 7 双版本矩阵 + 静态检查 + 单元自测
+
+# 为什么要有「5.1 这一档」：
+#   仓库所有 .bat 入口默认走系统自带的 Windows PowerShell 5.1（干净机器上一定有），
+#   装了 PowerShell 7 才优先用 7。历史上就因为没有 5.1 这一档，让一个致命问题
+#   溜进了发布：「.ps1 存成无 BOM 的 UTF-8」在简体中文 Windows 上被 5.1 按 GBK
+#   解码，中文串撕裂后报出一堆看不懂的语法错（Missing closing '}'）。
+#   PS7 能正常读无 BOM 的 UTF-8，所以只跑 PS7 的 CI 永远发现不了。
+#
+# 完整部署验证（deploy/verify.ps1，30 项/八层）需要已构建的二进制、Chromium 运行时
+# 与运行中的服务，属于「部署后验证」，不在 CI 里跑；CI 只保证脚本本身可用。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  powershell-checks:
+    name: PowerShell 脚本检查（${{ matrix.powershell }}）
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - powershell: '5.1'
+            shell: powershell
+          - powershell: '7'
+            shell: pwsh
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 显示解释器版本
+        shell: ${{ matrix.shell }}
+        run: |
+          "PowerShell $($PSVersionTable.PSVersion) / edition=$($PSVersionTable.PSEdition)"
+          "Console.OutputEncoding=$([Console]::OutputEncoding.WebName)"
+
+      - name: 脚本静态检查（含编码与 5.1 解析器门禁）
+        shell: ${{ matrix.shell }}
+        run: .\tests\test_scripts.ps1
+
+      - name: 公共层单元自测
+        shell: ${{ matrix.shell }}
+        run: .\tests\test_common_selftest.ps1
+
+      - name: 批处理文件健康检查（CRLF + 纯 ASCII + 入口完整性）
+        shell: pwsh
+        run: |
+          $bad = @()
+          $bat = Get-ChildItem -Filter *.bat
+          foreach ($b in $bat) {
+            $bytes = [System.IO.File]::ReadAllBytes($b.FullName)
+            $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+            $lf = ([regex]::Matches($text, "(?<!`r)`n")).Count
+            if ($lf -gt 0) { $bad += "$($b.Name)（有 $lf 个裸 LF）" }
+            if ($bytes | Where-Object { $_ -gt 127 }) { $bad += "$($b.Name)（含非 ASCII，代码页错乱风险）" }
+          }
+          if ($bad.Count -gt 0) { throw "以下 .bat 不合格：$($bad -join ', ')" }
+
+          # 每个中文名入口都必须有 ASCII 名等价入口，方便国外/CI 环境使用
+          $pairs = @{
+            '一键部署.bat' = 'deploy.bat'; '启动.bat' = 'start.bat'
+            '停止.bat' = 'stop.bat'; '状态.bat' = 'status.bat'
+            '验证部署.bat' = 'verify.bat'
+          }
+          foreach ($k in $pairs.Keys) {
+            if (-not (Test-Path $k)) { throw "缺少入口：$k" }
+            $ascii = $pairs[$k]
+            if (-not (Test-Path $ascii)) { throw "缺少 ASCII 入口：$ascii" }
+          }
+          Write-Host "全部 .bat 均为 CRLF + 纯 ASCII，中英文入口成对存在（$($bat.Count) 个）" -ForegroundColor Green
+
+      - name: 文档与脚本一致性检查
+        shell: pwsh
+        run: |
+          $missing = @()
+          foreach ($name in @(
+            'deploy/common.ps1', 'deploy/run.ps1', 'deploy/bootstrap.ps1', 'deploy/build.ps1',
+            'deploy/start.ps1', 'deploy/stop.ps1', 'deploy/status.ps1', 'deploy/verify.ps1',
+            'deploy/reset-admin.ps1', 'deploy/install-service.ps1',
+            'tests/test_scripts.ps1', 'tests/test_common_selftest.ps1')) {
+            if (-not (Test-Path $name)) { $missing += $name }
+          }
+          foreach ($name in @(
+            'docs/01-项目分析.md', 'docs/02-部署手册.md',
+            'docs/03-使用说明.md', 'docs/04-验证报告.md')) {
+            if (-not (Test-Path $name)) { $missing += $name }
+          }
+          foreach ($name in @('.github/assets/banner.svg', 'LICENSE', 'NOTICE', 'CHANGELOG.md',
+            'SECURITY.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md')) {
+            if (-not (Test-Path $name)) { $missing += $name }
+          }
+          if ($missing.Count -gt 0) { throw "文档/脚本缺失：$($missing -join ', ') }" }
+
+          # README 里提到的脚本必须真的存在（防止文档漂移）
+          $readme = Get-Content README.md -Raw -Encoding UTF8
+          foreach ($m in [regex]::Matches($readme, 'deploy[\\/][a-z0-9-]+\.ps1')) {
+            $p = $m.Value -replace '\\', '/'
+            if (-not (Test-Path $p)) { throw "README 提到但实际缺失：$p" }
+          }
+          Write-Host "文档、脚本、元数据一致性检查通过" -ForegroundColor Green
+
+      - name: 敏感文件不得入库
+        shell: pwsh
+        run: |
+          $tracked = @(& git ls-files)
+          $leak = @($tracked | Where-Object {
+            $_ -match 'data\.key|初始管理员凭据|\.db$|\.db-wal$|\.db-shm$|\.exe$|\.pdb$|^app/|^runtime/|^logs/|^data/'
+          })
+          if ($leak.Count -gt 0) { throw "敏感文件或生成物被跟踪：$($leak -join ', ') }" }
+          Write-Host "已跟踪 $($tracked.Count) 个文件，无敏感项" -ForegroundColor Green

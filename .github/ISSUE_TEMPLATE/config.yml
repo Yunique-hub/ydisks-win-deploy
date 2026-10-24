@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 上游业务功能与缺陷
+    url: https://github.com/Christ9038/Ydisks-Xianyu-Helper/issues
+    about: 自动发货、消息回复、账号管理、API 等业务逻辑属于上游项目，请提到上游仓库。
+  - name: 安全漏洞
+    url: https://github.com/Yunique-hub/ydisks-win-deploy/security/advisories/new
+    about: 涉及脚本安全、凭据处理、提权逻辑的问题请走私密报告，不要开公开 issue。
